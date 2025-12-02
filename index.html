@@ -2,9 +2,790 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Hello</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iterative Reverse Image Search (IRIS)</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    
+    <!-- MathJax -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+
+    <style>
+        body {
+            font-family: 'Merriweather', serif;
+            color: #334155; /* Slate-700 for softer text */
+            background-color: #ffffff;
+        }
+        h1, h2, h3, h4, h5, h6, nav, .sans-serif {
+            font-family: 'Inter', sans-serif;
+        }
+        .math-display {
+            overflow-x: auto;
+            padding: 1rem 0;
+        }
+        /* Custom scrollbar for code/math blocks */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        
+        /* Algorithm Block Styling */
+        .algo-block {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #3b82f6;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            font-family: 'Inter', sans-serif;
+            margin: 2rem 0;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+        .algo-title {
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 1rem;
+            display: block;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 🔧 Layout-Specific Image Sizing */
+
+        /* Single-image figures: image = 80% of content width, centered */
+        figure img {
+            width: 80%;
+            max-width: none;
+            height: auto;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+            object-fit: contain;
+        }
+
+        /* Two-image grids in the Experiments section:
+        each image fills its grid cell (50% each on md+ screens) */
+        #experiments .grid img {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+            /* Reset margins since grid handles spacing */
+            margin: 0; 
+        }
+        
+        /* Book-style Sidebar Styling */
+        .book-toc {
+            font-family: 'Merriweather', serif;
+        }
+        .book-toc a {
+            text-decoration: none;
+        }
+        .book-toc .chapter-num {
+            font-weight: 700;
+            color: #94a3b8;
+            margin-right: 0.5rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85em;
+        }
+
+        /* ===== Publication-style results tables ===== */
+        .results-table-wrapper {
+            margin: 2rem auto;              /* center in page */
+            max-width: 56rem;               /* nice readable width (~896px) */
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;      /* light border */
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+            overflow-x: auto;               /* safe on small screens */
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;            /* ~14px */
+        }
+
+        .results-table thead {
+            background: linear-gradient(to right, #eff6ff, #e0ecff);
+        }
+
+        .results-table th {
+            padding: 0.75rem 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: #4b5563;
+            border-bottom: 1px solid #d1d5db;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .results-table th:first-child,
+        .results-table td:first-child {
+            text-align: center;             /* seed column centered */
+        }
+
+        .results-table tbody tr:nth-child(even) {
+            background-color: #f9fafb;      /* zebra striping */
+        }
+
+        .results-table tbody tr:hover {
+            background-color: #eff6ff;      /* subtle hover */
+        }
+
+        .results-table td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: right;
+            font-variant-numeric: tabular-nums;  /* aligned numbers if browser supports */
+        }
+    </style>
 </head>
-<body>
-    <h1>Hello</h1>
+<body class="antialiased">
+
+    <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div class="lg:grid lg:grid-cols-12 lg:gap-12">
+            
+            <!-- Sidebar / Table of Contents (Book Style) -->
+            <aside class="hidden lg:block lg:col-span-3">
+                <nav class="sticky top-12 overflow-y-auto max-h-[calc(100vh-4rem)] pr-2 book-toc">
+                    <h5 class="font-serif text-xl font-bold text-gray-900 mb-6 border-b-2 border-gray-900 pb-2">Contents</h5>
+                    <ul class="space-y-3 text-sm text-gray-700">
+                        <li>
+                            <a href="#intro" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">1.</span> Introduction
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#definitions" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">2.</span> Definitions
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#embedding" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">3.</span> Embedding & SSL
+                            </a>
+                            <!-- Nested List -->
+                            <ul class="mt-2 ml-2 space-y-2 text-xs text-gray-500 border-l border-gray-200 pl-4">
+                                <li>
+                                    <a href="#vicreg" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">3.1.</span> VICReg
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href="#intuition" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">4.</span> Intuition
+                            </a>
+                            <ul class="mt-2 ml-2 space-y-2 text-xs text-gray-500 border-l border-gray-200 pl-4">
+                                <li>
+                                    <a href="#embedding-clustering" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">4.1.</span> Embedding and Clustering
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href="#spread-search" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">5.</span> Spread Search (SpreadS)
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#cluster-search" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">6.</span> Cluster Search (ClusterS)
+                            </a>
+                            <ul class="mt-2 ml-2 space-y-2 text-xs text-gray-500 border-l border-gray-200 pl-4">
+                                <li>
+                                    <a href="#grid-search" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">6.1.</span> Grid Search (GridS)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#random-search" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">6.2.</span> Random Search (RandS)
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href="#iris-algo" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">7.</span> Algorithm: IRIS
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#experiments" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">8.</span> Experiments & Results
+                            </a>
+                            <ul class="mt-2 ml-2 space-y-2 text-xs text-gray-500 border-l border-gray-200 pl-4">
+                                <li>
+                                    <a href="#exp-spread" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">8.1.</span> Spread Search Only
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#exp-rand" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">8.2.</span> Spread Search & RandS
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#exp-grid" class="hover:text-blue-600 block">
+                                        <span class="chapter-num">8.3.</span> Spread Search & GridS
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href="#conclusion" class="block hover:text-blue-700 transition-colors">
+                                <span class="chapter-num">9.</span> Conclusion
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="lg:col-span-9">
+                
+                <!-- Minimal Header -->
+                <header class="mb-12 border-b border-gray-100 pb-8">
+                    <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight">
+                        Iterative Reverse Image Search (IRIS)
+                    </h1>
+                </header>
+
+                <!-- Article Content -->
+                <article class="prose prose-lg prose-slate max-w-none prose-headings:font-sans prose-headings:font-bold prose-a:text-blue-600 hover:prose-a:text-blue-500" id="intro">
+                    <p class="lead text-xl text-gray-600 mb-8">
+                        Recent advancements in computer vision underscore the need for large, labeled datasets to develop robust and efficient deep learning-based vision models. However, creating such extensive datasets through manual annotation is both cost-prohibitive and impractical due to the highly imbalanced nature of real-world datasets, where negative samples, which are of minimal interest, predominate.
+                    </p>
+                    <p>
+                        In this work, we introduce the <strong>Iterative Reverse Image Search (IRIS)</strong> algorithm, an iterative approach designed to alleviate the data annotation burden significantly. We propose a search algorithm that combines Nearest Neighbor search and a modified Diversity Sampler on the embeddings of pre-trained self-supervised models to discover samples similar to a given query sample. These components collaboratively guide the annotator to label only those samples identified as likely positive, thereby reducing the labeling of negative samples and accelerating the discovery of new samples while minimizing human effort. Although the idea can be easily extended to any domain, we strictly confine ourselves to computer vision here.
+                    </p>
+
+                    <!-- Definitions Section -->
+                    <section id="definitions" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Definitions</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose sans-serif mt-8">
+                            
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Unlabelled Dataset ($\mathbb{D}_{\text{images}}$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">The complete set of all unlabelled images available to the algorithm.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Seed Samples</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">A small set of initial samples selected from $\mathbb{D}_{\text{images}}$, which are used as a reference. The algorithm attempts to find samples similar to these.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Positive Samples ($^+$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">Samples from $\mathbb{D}_{\text{images}}$ that are labelled (by the annotator) to belong to the same class as the seed samples. Any set of positive samples is denoted by a <code>+</code> in the superscript eg $A^+$.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Negative Samples ($^-$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">Samples from $\mathbb{D}_{\text{images}}$ that are labelled (by the annotator) to belong to a different class than the seed samples. Any set of negative sample is denoted by a <code>-</code> in the superscript eg $A^-$.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Feature Extractor ($f_{\text{enc}}$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">The feature extractor is the pre-trained backbone that converts images into feature vectors. It is denoted by $f_{\text{enc}}$.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">$f_c$ (MLP Head)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">A single-layer MLP head that maps the latent space to $\mathbb{R}$, typically used to assign confidence scores or make predictions based on the feature representations.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow md:col-span-2">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Latent Dataset ($\mathcal{D}$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">
+                                    The full dataset is represented in the latent space:
+                                    $$ \mathcal{D} := \{ f_{\text{enc}}(d) \mid d \in \mathbb{D}_{\text{images}} \} $$
+                                </p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Labelled Set ($\mathcal{L}$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">The set of all labelled samples (both positive and negative) grows over successive annotation rounds.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Discovered Positives ($\Lambda$)</h4>
+                                <p class="text-sm text-gray-600 leading-relaxed">The subset of $\mathcal{D}^+$ identified and labelled as positive by the annotator.</p>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow md:col-span-2">
+                                <h4 class="font-bold text-gray-900 text-lg mb-2">Metrics</h4>
+                                <div class="text-sm text-gray-600 leading-relaxed grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p><strong>Discovery Rate ($d_r$):</strong> The discovery rate is the proportion of positive samples discovered: $$ d_r = \frac{|\Lambda|}{|\mathcal{D}^+|} $$</p>
+                                    </div>
+                                    <div>
+                                        <p><strong>Labelling Efficiency ($L_e$):</strong> The ratio of discovered positive samples to the total labelled samples: $$ L_e = \frac{|\Lambda|}{|\mathcal{L}|} $$</p>
+                                        <p class="mt-2"><strong>Composite Metric:</strong> A geometric mean of the above two metrics: $$ \text{Composite Metric} = \sqrt{d_r \times L_e} $$</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Embedding Section -->
+                    <section id="embedding" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Embedding and Self-Supervised Learning</h2>
+                        <p>Before beginning our discussion on the search algorithm and its associated technicalities, it is essential first to convert our images into embeddings. These embeddings serve several crucial purposes:</p>
+                        
+                        <ol>
+                            <li>
+                                <strong>Dimensionality Reduction</strong>: Images are inherently high-dimensional objects with a large number of degrees of freedom. Converting them into compact, dense representations allows us to address the curse of dimensionality while significantly reducing computational overhead. The resulting embeddings form a compressed yet information-rich representation of the original image space, making the subsequent search both efficient and accurate.
+                            </li>
+                            <li>
+                                <strong>Metric Definition in Embedding Space</strong>: Each embedding corresponds to a point in $\mathbb{R}^n$, and the relative orientation and magnitude of these vectors capture intrinsic similarities between the original samples. This establishes a well-defined metric space, where distances between points correlate with semantic similarity in the original image domain. Thus, embeddings not only encode semantic information but also provide a geometrical interpretation of similarity, which is essential for constructing an effective search algorithm.
+                            </li>
+                            <li>
+                                <strong>Formation of Clusters</strong>: The embeddings tend to form clusters, where samples with similar features are mapped close to each other. This clustering property implies that once a single point within a cluster is identified, one can infer the approximate nature of other points in that region. The concept of a metric and direction in the embedding space, therefore, allows for efficient exploration and retrieval of similar samples.
+                            </li>
+                        </ol>
+                        
+                        <p>To convert our image to embeddings, we primarily use VICReg. The working of VICReg is discussed in the following section.</p>
+
+                        <h3 id="vicreg" class="text-2xl text-gray-900 mt-10">VICReg</h3>
+                        <p>
+                            <a href="https://arxiv.org/abs/2105.04906" target="_blank">VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning</a> works by training on the surrogate task of generating embedding spaces that are invariant to specific augmentation spaces. This is achieved by using a Siamese-like setup, where two views of the same event are used, but both have been augmented to different degrees. The Euclidean distance in the embedding space between these two views is then minimised using gradient descent.
+                        </p>
+
+                        <figure>
+                            <img src="https://codimd.web.cern.ch/uploads/upload_b4cf6c75203f0b7c827e481f2518c359.png" alt="VICReg Training Procedure" class="rounded-lg shadow-lg border border-gray-100">
+                            <figcaption class="text-center text-sm text-gray-500 mt-4 italic font-serif">VICReg Training Procedure <a href="https://arxiv.org/pdf/2105.04906" class="text-blue-500 hover:underline">[Bardes et al.]</a></figcaption>
+                        </figure>
+
+                        <p>
+                            Along with the MSE loss that acts across the two projection vectors Z, to ensure stability against collapse and the non-triviality of the embedding space, we have the Covariance and Variance regularisation terms. The covariance component prevents the embedding dimensions from capturing the same information. In contrast, the variance component prevents all embedding vectors in a batch from collapsing to a single point in the representation space.
+                        </p>
+                    </section>
+
+                    <!-- Intuition Section -->
+                    <section id="intuition" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Intuition</h2>
+                        <h3 id="embedding-clustering" class="text-2xl text-gray-900 mt-8">Embedding and Clustering</h3>
+                        <p>
+                            Given that the image dataset has now been converted into embeddings, we next discuss the nature of clustering within the embedding space. For a given seed sample $S$, our objective is to identify as many semantically similar samples as possible while minimizing manual annotation.
+                        </p>
+                        <p>
+                            To elaborate further, consider an example scenario using the ImageNet dataset, denoted as $\mathbb{D}_{\text{Images}}$. For example, ImageNet-1K comprises 1000 distinct classes. We may therefore express the dataset as:
+                        </p>
+                        $$ \mathbb{D}_{\text{ImageNet}} \equiv \bigcup\limits_{i=1}^{1000} C_i, $$
+                        <p>
+                            where each class $C_i = \{ c_i^0, c_i^1, c_i^2, \dots, c_i^n \in \mathbb{D}_{\text{ImageNet}} \}$ corresponds to samples belonging to a single distinct class. In the said notation, the subscript refers to the class index, while the superscript refers to the sample index within that class. Now, given a few seed samples from $C_i$, our objective is to discover and label as many additional samples belonging to the same class as possible, while simultaneously minimizing the number of samples that do not belong to $C_i$. In essence, the task can be formulated as an optimization problem, wherein the goal is to maximize intra-class discovery under the constraint of minimal inter-class contamination.
+                        </p>
+                        <p>
+                            Following the discussion so far, one might quickly realize that using a K-nearest neighbor search on the embedding space might be the solution to this optimization problem. Although the former is partially true, one cannot discover all the samples belonging to a single class solely by using a nearest neighbor type search algorithm. The argument can be further understood by examining the clusters more closely within the embedding space.
+                        </p>
+
+                        <ul>
+                            <li>
+                                <strong>Sparse Clusters:</strong> Embedding algorithms such as VICReg are known for their ability to cluster semantically similar samples closely while simultaneously pushing dissimilar ones farther apart. In the ideal limit of perfect optimization, one would expect all samples belonging to the same class to collapse into a compact cluster, with inter-cluster centers maximally separated in the latent space. The compactness, or “tightness,” of a cluster can thus be defined by the relative distances between any two samples within the same class. Conversely, under suboptimal training conditions, both intra-cluster compactness and inter-cluster separation deteriorate, eventually approaching complete randomness as the model becomes less ideal. Practically, most embedding algorithms operate in an intermediate regime, where clusters are not perfectly compact and their centers are not well-separated. This results in partial overlap and contamination between clusters due to the presence of negative samples (belonging to different classes) within the neighborhood of positive ones. Such overlap directly impacts labeling efficiency, especially in nearest–neighbor–based search algorithms, where the number of samples within a given search radius increases exponentially with the radius.
+                            </li>
+                            <li>
+                                <strong>Multiple Disconnected Clusters:</strong> The samples belonging to a desired class may often be distributed across multiple, potentially disjoint, clusters within the embedding space. Continuing with the ImageNet example consisting of classes ${ C_0, C_1, \dots, C_n} $, it is possible that the search objective is to identify all samples corresponding to a composite class such that $C^* = C_a \cup C_b \cup C_c$. A representative case would be the discovery of all images of mammals within the ImageNet dataset. In such scenarios, the nearest-neighbour search remains constrained to a local region of the embedding space and, consequently, fails to retrieve samples lying in spatially disconnected clusters. This inherent locality limits the overall effectiveness of the search process in capturing the complete semantic diversity of the target class.
+                            </li>
+                            <li>
+                                <strong>Boundary Queries:</strong> Seed samples originating near the boundary of a cluster, within a latent space of dimension $N$, inherently require a large search radius due to the scaling of hypervolume with radius as $r^N$. As a result, moving away from the cluster centroid leads to an exponential decline in search efficiency.
+                            </li>
+                            <li>
+                                <strong>Out-of-Cluster Queries:</strong> If a query sample lies outside any cluster, the nearest neighbour search mechanism completely fails. Furthermore, as the query moves farther from the cluster centre, the computational effort required to locate similar samples increases exponentially.
+                            </li>
+                        </ul>
+
+                        <p>To maximize the efficiency of the search, we need two components within the search algorithm. We need a nearest neighbour-like search to explore the proximity of a given positive sample to find more positive samples from the surroundings, which we call the <strong>Spread Sampler (SpreadS)</strong>. We need a stochastic sampler or a diversity-type search that tries to sample new points that are far away from this cluster. The Stochastic or Random Like Sampler, which we call <strong>Cluster Search (ClusterS)</strong>, attempts to find new Clusters that the Spread Sampler can explore in later iterations.</p>
+                    </section>
+
+                    <!-- Spread Search -->
+                    <section id="spread-search" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Spread Search (SpreadS)</h2>
+                        <p>We present the following modified variant of the nearest neighbor search algorithm, which samples positive samples from the surroundings.</p>
+                        
+                        <div class="algo-block not-prose">
+                            <span class="algo-title">Algorithm: Spread Search</span>
+                            <div class="mb-4 text-sm text-gray-600 font-medium">
+                                <strong>Input:</strong> $S$ (set of queries), $a$ (number of nearest neighbours to be returned)<br>
+                                <strong>Output:</strong> $\delta$ (set of $a$-nearest neighbours for a given set of queries)
+                            </div>
+                            <ol class="list-decimal pl-6 space-y-2 font-mono text-sm bg-white p-6 rounded-lg border border-gray-200 text-gray-700">
+                                <li>$\mathcal{D}' \gets \mathcal{D} \setminus (\Lambda \cup S)$</li>
+                                <li>Set $\mathcal{M}[i,j] = \text{MSE}(\mathcal{D}'[i], S[j])$</li>
+                                <li><strong>For each</strong> $i$:
+                                    <div class="pl-4 text-blue-600">$\mathcal{R}[i] = \min \left( \bigcup_j \mathcal{M}[i,j] \right)$</div>
+                                </li>
+                                <li>$\mathcal{R}^* = \text{arg sort}_{\text{ascending}}(\mathcal{R})$</li>
+                                <li>$\delta \gets$ first $a$ samples of $\mathcal{R}^*$</li>
+                                <li><strong>Return</strong> $\mathcal{D}'[\delta]$</li>
+                            </ol>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            The above implementation of the nearest neighbour sampling works slightly differently from a vanilla KNN algorithm. In the said algorithm, we have a hyperparameter $a$ which we refer to as the search radius. The reference points whose nearest neighbors are to be discovered are denoted by $S$ as the query sample. The nearest neighbour search is performed on the entire dataset, excluding the already discovered and labelled samples, as well as the reference samples. For each such sample in the embedding space, we compute its distance with respect to the reference/seed/query points and return the first $a$ samples that have the smallest pairwise distance to the reference points.
+                        </p>
+                    </section>
+
+                    <!-- Cluster Search -->
+                    <section id="cluster-search" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Cluster Search (ClusterS)</h2>
+                        <p>
+                            The task of <strong>ClusterS</strong>, or the diversity sampler, is to identify new data points belonging to previously undiscovered clusters associated with the same class as the seed samples. To estimate the likelihood of a point belonging to the seed class, a Multi-Layer Perceptron (MLP) head is trained on the already identified positive samples. The objective of ClusterS is to discover samples that exhibit a high probability of being positive—belonging to the same class—while simultaneously residing sufficiently far away on the embedding space from the already discovered cluster centers. The *Cluster Search* method, therefore, attempts to optimise the following criteria to achieve the most effective and diverse sampling of positive points.
+                        </p>
+                        
+                        <div class="bg-blue-50 p-8 rounded-xl my-8 border border-blue-100 not-prose">
+                            <ul class="space-y-6">
+                                <li class="flex gap-4">
+                                    <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-100 text-blue-600 font-bold rounded-full">$M_1$</div>
+                                    <div>
+                                        <strong class="text-gray-900">Likelihood</strong>
+                                        <p class="text-gray-600 text-sm mt-1">The likelihood of being positive. This component of the optimisation criterion ensures that the diversity sampler returns only those samples that have a high probability of being a positive sample, and not random samples.</p>
+                                        <div class="mt-2 text-gray-800 font-mono text-sm">$$ M_1 = \sum\limits_{i=1}^n{f_c(x_i)} \text{where } f_c \text{ is the MLP score.} $$</div>
+                                    </div>
+                                </li>
+                                <li class="flex gap-4">
+                                    <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-100 text-blue-600 font-bold rounded-full">$M_2$</div>
+                                    <div>
+                                        <strong class="text-gray-900">Internal Diversity</strong>
+                                        <p class="text-gray-600 text-sm mt-1">The distance between each drawn sample. This component ensures that, in a single sampling step, the diversity sampler returns samples from as many different sources as possible.</p>
+                                        <div class="mt-2 text-gray-800 font-mono text-sm">$$ M_2 = \sum\limits_{i=1}^n\sum\limits_{j=1}^n{\| x_i-x_j \|} $$</div>
+                                    </div>
+                                </li>
+                                <li class="flex gap-4">
+                                    <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-100 text-blue-600 font-bold rounded-full">$M_3$</div>
+                                    <div>
+                                        <strong class="text-gray-900">External Diversity</strong>
+                                        <p class="text-gray-600 text-sm mt-1">The distance between each drawn sample with the positive labelled samples $\Lambda$. This component ensures that the diversity sampler indeed returns samples from clusters far away from those already discovered.</p>
+                                        <div class="mt-2 text-gray-800 font-mono text-sm">$$ M_3 = \sum\limits_{i=1}^N\sum\limits_{j=1}^n \| \Lambda_i-x_j \| $$</div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <p>In the above equations, $N$ is the number of positive samples we have currently labelled, and n$ is the number of Cluster Search samples to draw in this run.</p>
+
+                        <div class="text-center my-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <span class="text-gray-500 text-sm uppercase tracking-wide font-bold">Optimization Objective</span>
+                            <div class="text-xl mt-2 font-mono">$$M = \alpha M_1 + \beta M_2 + \gamma M_3$$</div>
+                        </div>
+                        
+                        <p>
+                            When $\alpha = 1, \beta = 0, \gamma = 0$, this becomes strictly a nearest neighbour search algorithm.
+                            When $\alpha = 0, \beta,\gamma \neq 0$, this strictly becomes a stochastic sampler.
+                        </p>
+                        <p>In this work, we explore how to solve this optimisation problem to define an optimal search algorithm.</p>
+
+                        <h3 id="grid-search" class="text-2xl text-gray-900 mt-10">Grid Search (GridS)</h3>
+                        <p>
+                            In this section, we develop the GridS algorithm, which can serve as a suitable candidate for the diversity sampler or ClusterS. Later, we also discuss another parallel algorithm called RandS, which can be used as a diversity sampler too. Here, we limit our discussion to GridS.
+                        </p>
+                        <p>
+                            The Cluster Search algorithm must maximize the three components of the cost function that we described in previous sections, coupled with the Spread search, to work optimally. Formulating analytic solutions to the above optimization is challenging. We try to find an approximate algorithmic solution to the above problem.
+                        </p>
+                        <p>
+                            We begin by dividing the entire embedding space into grids by segmenting the first few principal components of the embedding space. To address the second component of the equation, we strictly select only one sample from each grid. Now we have the first and the last component of the problem remaining. We scrutinize it and realise that the two are inversely linked to one another, given that the confidence of the MLP head is bound to decrease as the distance of the selected point from the already labelled samples on which the MLP head was trained increases. This makes it possible for us to rewrite the joint optimisation criterion, excluding the second component, as:
+                        </p>
+                        $$ M = \zeta \sum\limits_{i=1}^n{f_c(x_i)} + (1-\zeta)* \sum\limits_{i=1}^N\sum\limits_{j=1}^n \| \Lambda_i-x_j \| $$
+                        <p>
+                            By fine-tuning and empirically finding the value of $\zeta$, we can exactly solve our optimization problem. In the original cost, we also had the parameter $\beta$ that controlled how different the two drawn samples are from one another. This parameter is realized through the number of partitions/grids into which the entire embedding space is broken.
+                        </p>
+                        
+                        <div class="algo-block not-prose mt-8">
+                            <span class="algo-title">GridS Algorithm</span>
+                            <div class="mb-4 text-sm text-gray-600 font-medium">
+                                <strong>Input:</strong> $\mathcal{D}$ (dataset), $m$ (dimensionality of PCA), $N$ (number of segment per PCA dimension), $\zeta$ (hyperparameters)<br>
+                                <strong>Output:</strong> $S$ (sampled set)
+                            </div>
+                            <ol class="list-decimal pl-6 space-y-2 font-mono text-sm bg-white p-6 rounded-lg border border-gray-200 text-gray-700">
+                                <li>
+                                    <strong>Step 1: Dimensionality Reduction Using PCA</strong><br>
+                                    $\mathcal{D}_{red} \gets \text{PCA}(\mathcal{D}, m)$<br>
+                                    Let $\mathcal{D}_{red} = \{(x_{1i}, x_{2i},..., x_{mi}) \mid i = 1, 2, \dots, n\}$<br>
+                                    i.e. $n$ points with coordinates $(x_1, x_2,..., x_m)$
+                                </li>
+                                <li>
+                                    <strong>Step 2: Partition the Dataset along Each Dimension</strong><br>
+                                    <strong>For each</strong> $j \in \{1, 2, \dots, m\}$:
+                                    <div class="pl-4 border-l-2 border-gray-100 ml-2 my-1">
+                                        a. $\mathcal{R} \gets \mathcal{D}_{red}$<br>
+                                        b. $\mathcal{R} \gets \text{argsort}_{i=1}^n \mathcal{R}[i][j]$<br>
+                                        c. <strong>For each</strong> $k \in \{1, 2, \dots, N\}$:<br>
+                                        <div class="pl-4">i. $D_{kj} \gets \mathcal{R}\Big[\dfrac{(k-1)n}{N} : \dfrac{kn}{N}\Big]$</div>
+                                    </div>
+                                </li>
+                                <li>
+                                    <strong>Step 3: Define Blocks</strong><br>
+                                    $L \gets [\ ]$<br>
+                                    <strong>For each</strong> $k \in \{1, 2, \dots, N^m\}$:<br>
+                                    <div class="pl-4 border-l-2 border-gray-100 ml-2 my-1">
+                                        a. $B_k = \Big\{\bigcap\limits_{l=1}^n \bigcap\limits_{j=1}^m \mathcal{D}_{k[l]j} \ \big| \ k \text{ is an m-string on } \{1, 2, \dots, N\}\Big\}$<br>
+                                        b. $f_c(v) \gets \zeta f_{MLP}(v) + (1 - \zeta)\big(\min\limits_{l \in \Lambda}\{\|l - v\|\}\big)$, where $\Lambda$ is the set of discovered positive samples.<br>
+                                        c. $f_c(B_k) = \max\{f_c(v) \mid v \in B_k\}$<br>
+                                        d. $L.\text{append}(B_k, f_c(B_k))$
+                                    </div>
+                                </li>
+                                <li>$L = \text{sort}(L)$ w.r.t. $f_c(B)$ for $B \in L$</li>
+                                <li><strong>Output:</strong> $L[N^m - s : -1]$ # $s$ samples</li>
+                            </ol>
+                        </div>
+
+                        <h3 id="random-search" class="text-2xl text-gray-900 mt-10">Random Search (RandS)</h3>
+                        <p>
+                            We return to our discussion of the complete three-component cost function. This time, we aim to develop a simpler algorithm by further relaxing the boundaries of our assumption. We return to the second component of our cost and claim that if we randomly draw samples from the dataset, then we can automatically ensure that all the samples are well spread apart, given a large number of samples are selected. This is equivalent to setting the value of $N^m$ (total number of grids) in the GridS algorithm, equivalent to the size of the entire dataset. To weakly satisfy the first and third components while still embedding the diversity condition, we simply set a threshold for the confidence value of the MLP and randomly select our sample from a set that has a higher confidence value compared to this threshold. We refer to this as the RandS variant of the Cluster Search Algorithm.
+                        </p>
+
+                        <div class="algo-block not-prose mt-8">
+                            <span class="algo-title">RandS Algorithm</span>
+                            <div class="mb-4 text-sm text-gray-600 font-medium">
+                                <strong>Input:</strong> $\mathcal{D}$ (dataset), $\alpha$(hyperparameter, controls diversity), $b$ (Number of samples to return)<br>
+                                <strong>Output:</strong> $S$ (sampled set)
+                            </div>
+                            <ol class="list-decimal pl-6 space-y-2 font-mono text-sm bg-white p-6 rounded-lg border border-gray-200 text-gray-700">
+                                <li>
+                                    <strong>For each</strong> $\mathcal{D}[i]$ in $\mathcal{D}$:<br>
+                                    <div class="pl-4">a. $H_i \gets \text{Head}(\mathcal{D}[i])$</div>
+                                </li>
+                                <li>$T \gets \text{Mean}(H) + \alpha \times \text{Stdev}(H)$</li>
+                                <li>$S \gets \{\mathcal{D}[i] \mid H_i > T\}$</li>
+                                <li>$S \gets \text{Select } b \text{ random samples from } S$</li>
+                                <li><strong>Return</strong> $S$</li>
+                            </ol>
+                        </div>
+                    </section>
+
+                    <!-- IRIS Algorithm -->
+                    <section id="iris-algo" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Algorithm: IRIS</h2>
+                        <p>Now, given that we have developed all the associated components of our search algorithm, we define the complete algorithm as follows:</p>
+                        
+                        <div class="algo-block border-l-green-500 not-prose mt-8">
+                            <span class="algo-title text-green-700">Algorithm: IRIS</span>
+                            <div class="mb-4 text-sm text-gray-600 font-medium">
+                                <strong>Input:</strong> $\Lambda$ (Initial seeds/queries), epochs, $a$, $b$, $l$, $\alpha$<br>
+                                <strong>Output:</strong> $\Lambda^*$ (Updated values)
+                            </div>
+                            <ol class="list-decimal pl-6 space-y-2 font-mono text-sm bg-white p-6 rounded-lg border border-green-100 text-gray-700">
+                                <li>$\delta^0 \gets \Lambda$</li>
+                                <li><strong>For</strong> $i = 1$ to epochs:
+                                    <div class="pl-4 border-l-2 border-gray-100 ml-2 my-2 py-1 space-y-1">
+                                        <div>a. $K \gets \text{SpreadS}(\delta^0, a)$</div>
+                                        <div>b. $\delta \gets \text{ClusterS}(\mathcal{D}, b)$</div>
+                                        <div>c. $\gamma \gets K \cup \delta$</div>
+                                        <div>d. $\text{Oracle}(\gamma) \to (\gamma^+, \gamma^-)$</div>
+                                        <div>e. $\Lambda \gets \Lambda \cup \gamma^+$</div>
+                                        <div>f. <strong>Train MLP head on</strong> $(\Lambda \cup \gamma^-)$</div>
+                                        <div>g. $i \gets i + 1$</div>
+                                    </div>
+                                </li>
+                                <li>
+                                    <strong>For each</strong> $\mathcal{D}[i]$ in $\mathcal{D}$:<br>
+                                    <div class="pl-4">a. $H_i \gets \text{Head}(\mathcal{D}[i])$</div>
+                                </li>
+                                <li>$T \gets \text{Mean}(H) + \alpha \times \text{Std}(H)$</li>
+                                <li>$z \gets \{\mathcal{D}[i] \mid H_i > T\}$</li>
+                                <li>$\text{Oracle}(z) \to (z^+, z^-)$</li>
+                                <li>$\Lambda^* \gets \Lambda \cup z^+$</li>
+                                <li><strong>Return</strong> $\Lambda^*$</li>
+                            </ol>
+                        </div>
+                        <p>
+                            In the above algorithm, we begin with a few seed samples that we denote by $\delta^0$. Given the iterative nature of our algorithm, we iterate through the entire dataset $\text{epoch}$ number of times. For each iteration, we sample the dataset through both the Spread Sampler and GridSampler. We accept $a$ samples (and denote it as $K$) from the grid sampler and $b$ samples (and denote it as $\delta$) from the Cluster Sampler. We combine the two sets as $\gamma \equiv K \cup \delta$. Now, given the sampling step is complete, we annotate the samples and separate them into $\gamma^+$ (samples that belong to the same class as $\delta^0$) and $\gamma^-$ (samples belonging to a different class). The newly discovered samples are now stored as $\Lambda \gets \Lambda \cup \gamma^+$. Next, we update the weights of our MLP confidence estimator by training it on the set $(\Lambda \cup \gamma^-)$. Subsequently, once all iterations are completed, we estimate the confidence of the entire dataset for the last time and select the highest-confidence samples (with confidence higher than a set threshold) from the dataset that are not yet annotated. We then annotate these samples and store the positive samples.
+                        </p>
+                    </section>
+
+                    <!-- Experiments -->
+                    <section id="experiments" class="mt-16 scroll-mt-16">
+                        <h2 class="text-3xl text-gray-900">Experiments and Results</h2>
+                        <p>
+                            To assess the strengths and limitations of our algorithm, we evaluate it on the ImageNet dataset. We first compute embeddings for all images using a pretrained VICReg encoder. For each evaluation setting, we uniformly sample 50 classes at random and attempt to recover all samples belonging to those classes, given a fixed budget of initial query examples. We sweep the query budget over {1, 2, 5, 10, 50}. For each budget, we run five independent random seeds and repeat the entire procedure five times to address statistical noise.
+                        </p>
+
+                        <h3 id="exp-spread" class="text-xl font-bold text-gray-900 mt-8 mb-4">Spread Search (Nearest Neighbor Search) only</h3>
+                        <p>
+                            We have discussed in the previous sections how the nearest neighbor algorithm alone is not sufficient for discovering all the samples associated with our search query. Here, we present our findings after evaluating just the nearest neighbour search component over two different radii of searches.
+                        </p>
+                        <p class="text-sm text-gray-600 italic mb-2">Note: LE = labelling efficiency; D = discovery rate; GM = geometric mean.</p>
+                        
+                        <div class="results-table-wrapper">
+                            <table class="results-table">
+                                <thead>
+                                    <tr>
+                                        <th>No. of seeds</th>
+                                        <th>LE (a=50)</th>
+                                        <th>D (a=50)</th>
+                                        <th>GM (a=50)</th>
+                                        <th>LE (a=200)</th>
+                                        <th>D (a=200)</th>
+                                        <th>GM (a=200)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>1</td><td>0.15</td><td>0.0323</td><td>0.0696</td><td>0.1233</td><td>0.0369</td><td>0.06745</td></tr>
+                                    <tr><td>2</td><td>0.15</td><td>0.0331</td><td>0.0704</td><td>0.1461</td><td>0.0573</td><td>0.09149</td></tr>
+                                    <tr><td>5</td><td>0.24</td><td>0.0761</td><td>0.1351</td><td>0.1707</td><td>0.0723</td><td>0.11109</td></tr>
+                                    <tr><td>10</td><td>0.26</td><td>0.0661</td><td>0.1310</td><td>0.1786</td><td>0.1046</td><td>0.13668</td></tr>
+                                    <tr><td>50</td><td>0.41</td><td>0.1173</td><td>0.2193</td><td>0.2866</td><td>0.1176</td><td>0.18358</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p>
+                            Spread search, being a nearest-neighbour exploration, has a relatively low discovery rate but a high labelling efficiency. We evaluate our algorithm for two different search \(a = 50\) and \(a = 200\). Given that there exist two different evaluation components to maximize, we try to combine them into a single composite metric by calculating the Geometric Mean between the two. We will compare this composite score across all different algorithms.
+                        </p>
+
+                        <h3 id="exp-rand" class="text-xl font-bold text-gray-900 mt-8 mb-4">Spread Search and Random Search</h3>
+                        <p>
+                            To supplement our SpreadS algorithm, we add a random search algorithm to it. We begin by just adding a simple random sampler to the search algorithm. If we refer back to our original cost function:
+                        </p>
+                        $$M = \alpha \sum\limits_{i=1}^n{f_c(x_i)}+ \beta \sum\limits_{i=1}^n\sum\limits_{j=1}^n{\| x_i-x_j \|} + \gamma \sum\limits_{i=1}^N\sum\limits_{j=1}^n \| \Lambda_i-x_j \|$$
+                        <p>
+                            By simply having a random sampler, we are effectively eliminating the first term, or setting the value of $\alpha \to 0$. Moreover, as we discussed in the previous sections, for a sufficiently large set of randomly sampled samples, $\beta \to 0$. This makes our optimisation reward that we want to maximise as:
+                        </p>
+                        $$M = \sum\limits_{i=1}^N\sum\limits_{j=1}^n \| \Lambda_i-x_j \|$$
+                        <p>
+                            This is automatically maximised again when we randomly select samples from the distribution, given that $\|\Lambda^+\| << \|D\|$ or the total number of positive samples discovered is much less in number compared to the total number of samples in the dataset
+                        </p>
+
+                        <div class="results-table-wrapper">
+                            <table class="results-table">
+                                <thead>
+                                    <tr>
+                                        <th>No. of seeds</th>
+                                        <th>LE</th>
+                                        <th>D</th>
+                                        <th>GM</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>1</td><td>0.03408</td><td>0.85384</td><td>0.17059</td></tr>
+                                    <tr><td>2</td><td>0.03520</td><td>0.88153</td><td>0.17617</td></tr>
+                                    <tr><td>5</td><td>0.03381</td><td>0.88423</td><td>0.17290</td></tr>
+                                    <tr><td>10</td><td>0.03395</td><td>0.89153</td><td>0.17398</td></tr>
+                                    <tr><td>50</td><td>0.02829</td><td>0.93538</td><td>0.16268</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p>
+                            Compared to a simple nearest neighbor search, we can already see that the composite score has increased for most cases, except for the case with 50 different seeds. This can be explained by the fact that the nearest neighbour search improves as it has more initial cluster centers to begin with, given that it gets access to almost all the clusters, making the need for a diversity sampler redundant.
+                        </p>
+                        <p>Next, we attempt to evaluate the complete RandS algorithm, which was discussed in detail in the previous section.</p>
+
+                        <div class="results-table-wrapper">
+                            <table class="results-table">
+                                <thead>
+                                    <tr>
+                                        <th>No. of seeds</th>
+                                        <th>LE</th>
+                                        <th>D</th>
+                                        <th>GM</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>1</td><td>0.1204</td><td>0.8861</td><td>0.3266</td></tr>
+                                    <tr><td>2</td><td>0.1205</td><td>0.8819</td><td>0.3260</td></tr>
+                                    <tr><td>5</td><td>0.1159</td><td>0.8659</td><td>0.3169</td></tr>
+                                    <tr><td>10</td><td>0.1141</td><td>0.8713</td><td>0.3153</td></tr>
+                                    <tr><td>50</td><td>0.1058</td><td>0.8969</td><td>0.3082</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p>
+                            We can clearly see that this combination of algorithms outperforms all the previous ones. Even for a vast number of initial seed examples, the algorithm outperforms the simple nearest neighbour search. The reason behind this can be explained by the fact that with a large number of initial high-quality seed/query samples, the MLP head learns the correct parameters relatively quickly, making the confidence prediction more accurate.
+                        </p>
+
+                        <h3 id="exp-grid" class="text-xl font-bold text-gray-900 mt-8 mb-4">Spread Search and Grid Search</h3>
+                        <p>
+                            Finally, we present our findings on the complete algorithm using the GridS algorithm, which promises to maximise all three components of the cost function explicitly. The complete cost function for the optimisation problem is mainly dependent on two independent hyperparameters, which are:
+                        </p>
+                        <ul class="list-disc pl-5">
+                            <li><strong>N</strong>: The number of grids that we break the embedding space into. N is inversely proportional to the $\beta$ parameter in the original equation.</li>
+                            <li><strong>$\zeta$</strong>: The parameters $\alpha$ and $\gamma$ are dependent on each other, and the overall cost can be simplified into a two-component form, which is controlled by the parameter $\zeta$.</li>
+                        </ul>
+                        <p>
+                            Determining the above two parameters accurately will ensure that our algorithm works perfectly. Given the excessive cost of running the experiment for multiple variants of $N$ and $\zeta$, we limit ourselves to selected values of $\zeta$ and a single value of $N$, which is 10 for our experiments. The performance for the different values of $\zeta$ is shown in the figure below:
+                        </p>
+
+                        <figure>
+                            <img src="https://codimd.web.cern.ch/uploads/upload_74873e8018dd853e9a53aec1ea16d402.png" alt="Performance for different values of zeta" class="rounded-lg shadow-md border border-gray-200">
+                        </figure>
+
+                        <p>
+                            The above plot shows that the labelling efficiency monotonically increases as the value of $\zeta$ approaches 1. The discovery rate decreases, but the overall change in discovery rate is minimal compared to the change in labelling efficiency. To get a better understanding, we plot the variation of the composite score over the different values of $\zeta$
+                        </p>
+                        
+                        <figure>
+                            <img src="https://codimd.web.cern.ch/uploads/upload_16d5032ad56708ff38150f8483545fc9.png" alt="Variation of composite score" class="rounded-lg shadow-md border border-gray-200">
+                        </figure>
+
+                        <p>From the above plot, it is clear that the maximum performance is achieved by setting the value of $\zeta$ to 1.</p>
+                        <p>Now, we compare the performance of all the different algorithmic combinations that we have discussed so far.</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-8 mx-auto">
+                            <img src="https://codimd.web.cern.ch/uploads/upload_c2981ec956152d9e12376aa995dad4f5.png" alt="Comparison Plot 1" class="rounded-lg shadow-md border border-gray-200">
+                            <img src="https://codimd.web.cern.ch/uploads/upload_3cd0d6f74c27d4128a68c93884fb9f74.png" alt="Comparison Plot 2" class="rounded-lg shadow-md border border-gray-200">
+                        </div>
+                        
+                        <p>
+                            As shown in the above plots, the RandS component, when used as a diversity sampler, performs slightly better than grid-like sampling. This is evident from the fact that the GridS had the optimal value of the $\zeta$ parameter as one, making it more similar to the RandS sampler. Moreover, RandS automatically assumes the value of $N^m \to \|D\|$, making it absolutely possible to have a value of $N^m \in [0, \| D \| ]$ where the performance of the GridS algorithm exceeds that of the RandS. Moreover, the performance of the GridS diversity sampler closely resembles that of the RandS diversity sampler, indicating that our optimisation assumptions were indeed accurate. Additionally, the GridS is difficult to tune and more expensive to use compared to the RandS algorithm. In comparison to the nearest neighbor search and manual labeling annotation, we see a significant performance improvement.
+                        </p>
+                    </section>
+
+                    <!-- Conclusion -->
+                    <section id="conclusion" class="mt-16 bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-100 not-prose">
+                        <h2 class="text-3xl font-bold text-blue-900 mb-4 font-sans">Conclusion and Future Direction</h2>
+                        <p class="mb-4 text-blue-900/80 leading-relaxed font-serif">
+                            In this work, we developed the IRIS framework to alleviate the task of manual labelling by combining nearest neighbour type search with a suitable diversity sampler. We discussed two different types of diversity samplers, both of which demonstrate superior performance compared to the existing nearest neighbor type or manual labeling baselines. IRIS can be used to expedite the curation of new datasets and citizen science-type projects where manual labeling is essential. The values of the hyperparameters that have been extensively discussed throughout this work can be tuned using existing labels in a large, mostly unlabelled dataset. In our future work, we aim to explore how this approach plays out by using ImageNet 1k to tune the parameters and utilizing the same dataset to label the entirety of ImageNet 22k. Datasets, such as iNaturalist, can be used to determine the parameters of the search algorithm, which can later be used to curate datasets (or identify) of endangered/rare species.
+                        </p>
+                    </section>
+
+                </article>
+            </main>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t border-gray-200 text-gray-500 py-12 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sans-serif text-sm">
+            <p>&copy; 2023 Iterative Reverse Image Search Research. All rights reserved.</p>
+        </div>
+    </footer>
+
 </body>
 </html>
